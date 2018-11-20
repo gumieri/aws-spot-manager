@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "description": "",
   "main": "asm",
+  "bin": {
+    "asm": "./asm"
+  },
   "scripts": {
     "test": "ava"
   },
@@ -26,6 +29,8 @@
     "ava": "^0.25.0"
   },
   "dependencies": {
-    "aws-sdk": "^2.358.0"
+    "aws-sdk": "^2.358.0",
+    "columnify": "^1.5.4",
+    "lib2cli": "0.0.4"
   }
 }
