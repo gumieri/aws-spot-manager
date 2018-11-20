@@ -1,0 +1,31 @@
+{
+  "name": "aws-spot-manager",
+  "version": "0.0.0",
+  "description": "",
+  "main": "asm",
+  "scripts": {
+    "test": "ava"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gumieri/aws-spot-manager.git"
+  },
+  "keywords": [
+    "aws",
+    "spot",
+    "fleet",
+    "manager"
+  ],
+  "author": "Rafael Gumieri",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gumieri/aws-spot-manager/issues"
+  },
+  "homepage": "https://github.com/gumieri/aws-spot-manager#readme",
+  "devDependencies": {
+    "ava": "^0.25.0"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.358.0"
+  }
+}
