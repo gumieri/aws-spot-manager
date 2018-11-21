@@ -32,7 +32,7 @@ function formatLine ({ data, extendedData }) {
   return line
 }
 
-module.exports = async ({ headers, state }) => {
+module.exports = async ({ headers = true, state }) => {
   const cfg = await config.load()
 
   const extendedData = await extendedSource.fleet({ config: cfg })
