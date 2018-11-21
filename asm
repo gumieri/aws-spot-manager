@@ -5,7 +5,8 @@ const lib2cli = require('lib2cli')
 lib2cli.run({
   lib: {
     fleet: {
-      list: require('./fleet/list')
+      list: require('./fleet/list'),
+      request: require('./fleet/request')
     }
   },
   doc: {
