@@ -46,7 +46,7 @@ lib2cli.run({
               'instance-type': {
                 description: 'e.g. "c5.large"',
                 alias: 'i',
-                defaultValue: 't2.small'
+                required: true
               },
               'security-group': {
                 description:

@@ -1,5 +1,6 @@
 const fs = require('fs')
 const AWS = require('aws-sdk')
+const { prompt } = require('enquirer')
 const ec2 = new AWS.EC2({ apiVersion: '2016-11-15' })
 const iam = new AWS.IAM({ apiVersion: '2010-05-08' })
 
@@ -127,12 +128,18 @@ async function findLatestAmiEcsOptimized () {
   return latest
 }
 
+function requiredInput (value) {
+  if (typeof value === 'undefined') return false
+  if (value === '') return false
+  return true
+}
+
 module.exports = async ({
   k,
   n,
   g,
   c = 1,
-  i = 't2.small',
+  i,
   t,
   key = k,
   tag = t,
@@ -184,6 +191,86 @@ module.exports = async ({
   const instanceTypes = stringArrayOrEmpty(instanceType)
   const securityGroups = stringArrayOrEmpty(securityGroup)
 
+  if (!ami) {
+    const { response } = await prompt({
+      type: 'input',
+      name: 'response',
+      message: 'Inform a Image ID (e.g. "ami-1a2b3c4d") - REQUIRED',
+      validate: requiredInput
+    })
+
+    if (response) ami = response
+  }
+
+  if (instanceTypes.length === 0) {
+    let message = 'Inform a Instance Type (e.g. "t2.small") - REQUIRED'
+    let validate = requiredInput
+    while (true) {
+      const { response } = await prompt({
+        type: 'input',
+        name: 'response',
+        message,
+        validate
+      })
+
+      if (!response) break
+
+      instanceTypes.push(response)
+      message = 'Inform another Instance Type or let it empty'
+      validate = undefined
+    }
+  }
+
+  if (subnets.length === 0) {
+    let message =
+      'Inform a Subnet ID or Name Tag (e.g. "subnet-1a2b3c4d") - REQUIRED'
+    let validate = requiredInput
+    while (true) {
+      const { response } = await prompt({
+        type: 'input',
+        name: 'response',
+        message,
+        validate
+      })
+      if (!response) break
+
+      subnets.push(response)
+      message = 'Inform another Subnet or let it empty'
+      validate = undefined
+    }
+  }
+
+  if (securityGroups.length === 0) {
+    let message =
+      'Inform a Security Group ID, Group Name or Name Tag (e.g. "sg-1a2b3c4d")'
+    while (true) {
+      const { response } = await prompt({
+        type: 'input',
+        name: 'response',
+        message
+      })
+      if (!response) break
+
+      securityGroups.push(response)
+      message = 'Inform another Security Group or let it empty'
+    }
+  }
+
+  if (tags.length === 0) {
+    let message = 'Inform a Tag with value (e.g. "Name=Awesome")'
+    while (true) {
+      const { response } = await prompt({
+        type: 'input',
+        name: 'response',
+        message
+      })
+      if (!response) break
+
+      tags.push(response)
+      message = 'Inform another Tag or let it empty'
+    }
+  }
+
   const { Role: { Arn: IamFleetRole } } = await iam
     .getRole({ RoleName: fleetRole })
     .promise()
@@ -212,10 +299,13 @@ module.exports = async ({
     SecurityGroups.push({ GroupId })
   }
 
-  const TagSpecifications = [{ ResourceType: 'instance', Tags: [] }]
-  for (const t of tags) {
-    const [Key, Value] = t.split('=')
-    TagSpecifications[0].Tags.push({ Key, Value })
+  let TagSpecifications
+  if (tags.length !== 0) {
+    TagSpecifications = [{ ResourceType: 'instance', Tags: [] }]
+    for (const t of tags) {
+      const [Key, Value] = t.split('=')
+      TagSpecifications[0].Tags.push({ Key, Value })
+    }
   }
 
   const LaunchSpecifications = []
