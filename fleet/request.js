@@ -1,7 +1,9 @@
 const fs = require('fs')
+const ora = require('ora')
 const AWS = require('aws-sdk')
 const { prompt } = require('enquirer')
 const ec2 = new AWS.EC2({ apiVersion: '2016-11-15' })
+const ecs = new AWS.ECS({ apiVersion: '2014-11-13' })
 const iam = new AWS.IAM({ apiVersion: '2010-05-08' })
 
 const config = require('../lib/config')
@@ -134,6 +136,18 @@ function requiredInput (value) {
   return true
 }
 
+async function checkECSCluster (cluster) {
+  const { clusters } = await ecs
+    .describeClusters({ clusters: [cluster] })
+    .promise()
+
+  if (clusters.length === 0) {
+    throw new Error(`The ECS Cluster with name ${cluster} cannot be found.`)
+  }
+
+  return clusters[0]
+}
+
 module.exports = async ({
   k,
   n,
@@ -171,8 +185,17 @@ module.exports = async ({
     instanceProfile = 'ecsInstanceRole'
   }
 
+  if (ecsCluster) {
+    if (typeof ecsCluster !== 'string') ecsCluster = 'default'
+    const checkingECSCluster = checkECSCluster(ecsCluster)
+    ora.promise(checkingECSCluster, 'Checking ECS Cluster...')
+    await checkingECSCluster
+  }
+
   if (!ami && ecsCluster) {
-    const image = await findLatestAmiEcsOptimized()
+    const searchingECSAMI = findLatestAmiEcsOptimized()
+    ora.promise(searchingECSAMI, 'Searching Latest ECS Optimized AMI...')
+    const image = await searchingECSAMI
     if (image) ami = image.ImageId
   }
 
@@ -271,33 +294,40 @@ module.exports = async ({
     }
   }
 
-  const { Role: { Arn: IamFleetRole } } = await iam
-    .getRole({ RoleName: fleetRole })
-    .promise()
+  const checkRole = iam.getRole({ RoleName: fleetRole }).promise()
+  ora.promise(checkRole, 'Checking IAM Role...')
+  const { Role: { Arn: IamFleetRole } } = await checkRole
 
   let IamInstanceProfile
   if (instanceProfile) {
-    const data = await iam
+    const checkProfile = iam
       .getInstanceProfile({ InstanceProfileName: instanceProfile })
       .promise()
+    ora.promise(checkProfile, 'Checking Instance Profile...')
+    const data = await checkProfile
   }
+
+  const findAllSubnets = Promise.all(
+    subnets.map(Subnet => findSubnet({ Subnet }))
+  )
+  ora.promise(findAllSubnets, 'Checking Subnets...')
 
   let singleVpcId
   const SubnetIds = []
-  for (const subnet of subnets) {
-    const { SubnetId, VpcId } = await findSubnet({ Subnet: subnet })
+  for (const { SubnetId, VpcId } of await findAllSubnets) {
     SubnetIds.push(SubnetId)
     singleVpcId = VpcId
   }
 
-  const SecurityGroups = []
-  for (const sg of securityGroups) {
-    const { GroupId } = await findSecurityGroup({
-      SecurityGroup: sg,
-      VpcId: singleVpcId
-    })
-    SecurityGroups.push({ GroupId })
-  }
+  const findAllSecurityGroups = Promise.all(
+    securityGroups.map(SecurityGroup =>
+      findSecurityGroup({ SecurityGroup, VpcId: singleVpcId })
+    )
+  )
+  ora.promise(findAllSecurityGroups, 'Checking Security Groups...')
+  const SecurityGroups = (await findAllSecurityGroups).map(({ GroupId }) => ({
+    GroupId
+  }))
 
   let TagSpecifications
   if (tags.length !== 0) {
@@ -324,7 +354,7 @@ module.exports = async ({
     })
   }
 
-  return ec2
+  const requestPromise = ec2
     .requestSpotFleet({
       SpotFleetRequestConfig: {
         IamFleetRole,
@@ -334,4 +364,7 @@ module.exports = async ({
       }
     })
     .promise()
+
+  ora.promise(requestPromise, 'Requesting Spot Fleet')
+  await requestPromise
 }
