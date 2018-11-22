@@ -73,6 +73,16 @@ lib2cli.run({
               'instance-profile': {},
               'allocation-strategy': {}
             }
+          },
+          cancel: {
+            description: 'Cancel a spot fleet request.',
+            parameters: {
+              'Spot Fleet ID': {
+                description:
+                  'ID of the spot fleet (e.g. sfr-1a2b3c4d5e6f7g8h9i0k)',
+                required: true
+              }
+            }
           }
         }
       }

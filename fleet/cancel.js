@@ -6,7 +6,7 @@ const config = require('../lib/config')
 const extendedSource = require('../lib/extended_source')
 const { stringArrayOrEmpty } = require('../lib/utils')
 
-module.exports = async (spotFleet, { keepTags }) => {
+module.exports = async (spotFleet, { keepTags = false }) => {
   const cfg = await config.load()
 
   const canceling = ec2
