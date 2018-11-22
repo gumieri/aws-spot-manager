@@ -365,6 +365,16 @@ module.exports = async ({
     })
     .promise()
 
-  ora.promise(requestPromise, 'Requesting Spot Fleet')
-  await requestPromise
+  ora.promise(requestPromise, 'Requesting Spot Fleet...')
+  const { SpotFleetRequestId } = await requestPromise
+
+  if (cfg.extend_source && tags.length !== 0) {
+    const savingTags = extendedSource.putFleetTags({
+      config: cfg,
+      SpotFleetRequestId,
+      Tags: TagSpecifications[0].Tags
+    })
+    ora.promise(savingTags, 'Saving Tags for the Spot Fleet...')
+    await savingTags
+  }
 }

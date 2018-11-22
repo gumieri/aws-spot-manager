@@ -35,7 +35,7 @@ function formatLine ({ data, extendedData }) {
 module.exports = async ({ headers = true, state }) => {
   const cfg = await config.load()
 
-  const extendedData = await extendedSource.fleet({ config: cfg })
+  const extendedData = await extendedSource.allFleets({ config: cfg })
 
   let NextToken
   const SpotFleetRequestConfigs = []

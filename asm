@@ -6,7 +6,8 @@ lib2cli.run({
   lib: {
     fleet: {
       list: require('./fleet/list'),
-      request: require('./fleet/request')
+      request: require('./fleet/request'),
+      cancel: require('./fleet/cancel')
     }
   },
   doc: {
