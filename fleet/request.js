@@ -8,7 +8,7 @@ const iam = new AWS.IAM({ apiVersion: '2010-05-08' })
 
 const config = require('../lib/config')
 const extendedSource = require('../lib/extended_source')
-const { stringArrayOrEmpty } = require('../lib/utils')
+const { stringArrayOrEmpty, requiredInput } = require('../lib/utils')
 
 function spotFleetUserData ({ cluster }) {
   return `#!/bin/bash
@@ -128,12 +128,6 @@ async function findLatestAmiEcsOptimized () {
   }
 
   return latest
-}
-
-function requiredInput (value) {
-  if (typeof value === 'undefined') return false
-  if (value === '') return false
-  return true
 }
 
 async function checkECSCluster (cluster) {
