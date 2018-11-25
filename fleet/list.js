@@ -21,8 +21,11 @@ function formatLine ({ data, extendedData, date, strategy, requestType }) {
     }
   }
 
-  line['Fulfilled Capacity'] = data.SpotFleetRequestConfig.FulfilledCapacity
-  line['Target Capacity'] = data.SpotFleetRequestConfig.TargetCapacity
+  line['Capacity'] =
+    data.SpotFleetRequestConfig.FulfilledCapacity +
+    '/' +
+    data.SpotFleetRequestConfig.TargetCapacity
+
   line['Status'] = data.ActivityStatus
 
   if (requestType) line['Request Type'] = data.SpotFleetRequestConfig.Type
@@ -69,5 +72,12 @@ module.exports = async ({
     )
   }
 
-  console.log(columnify(outputData, { showHeaders: headers }))
+  console.log(
+    columnify(outputData, {
+      showHeaders: headers,
+      config: {
+        Capacity: { align: 'right' }
+      }
+    })
+  )
 }
