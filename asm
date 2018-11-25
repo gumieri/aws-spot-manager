@@ -21,7 +21,16 @@ lib2cli.run({
             description: 'List spot fleet requests.',
             flags: {
               state: {
-                description: 'filter by state'
+                description: 'Filter by state.'
+              },
+              date: {
+                description: 'Show "created at" column.'
+              },
+              strategy: {
+                description: 'Show "allocation strategy" column.'
+              },
+              'request-type': {
+                description: 'Show "request type" column.'
               },
               'no-headers': {
                 description: "Does not print headers' table."

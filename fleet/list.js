@@ -7,7 +7,7 @@ const config = require('../lib/config')
 const extendedSource = require('../lib/extended_source')
 const { stringArrayOrEmpty } = require('../lib/utils')
 
-function formatLine ({ data, extendedData }) {
+function formatLine ({ data, extendedData, date, strategy, requestType }) {
   const line = {}
 
   line['ID'] = data.SpotFleetRequestId
@@ -24,15 +24,27 @@ function formatLine ({ data, extendedData }) {
   line['Fulfilled Capacity'] = data.SpotFleetRequestConfig.FulfilledCapacity
   line['Target Capacity'] = data.SpotFleetRequestConfig.TargetCapacity
   line['Status'] = data.ActivityStatus
-  line['Request Type'] = data.SpotFleetRequestConfig.Type
-  line['Allocation Strategy'] = data.SpotFleetRequestConfig.AllocationStrategy
+
+  if (requestType) line['Request Type'] = data.SpotFleetRequestConfig.Type
+
+  if (strategy) {
+    line['Allocation Strategy'] = data.SpotFleetRequestConfig.AllocationStrategy
+  }
+
   line['State'] = data.SpotFleetRequestState
-  line['Created At'] = moment(data.CreateTime).format()
+
+  if (date) line['Created At'] = moment(data.CreateTime).format()
 
   return line
 }
 
-module.exports = async ({ headers = true, state }) => {
+module.exports = async ({
+  headers = true,
+  state,
+  date,
+  strategy,
+  requestType
+}) => {
   const cfg = await config.load()
 
   const extendedData = await extendedSource.allFleets({ config: cfg })
@@ -52,7 +64,9 @@ module.exports = async ({ headers = true, state }) => {
     if (states.length > 0) {
       if (!states.includes(data.SpotFleetRequestState)) continue
     }
-    outputData.push(formatLine({ data, extendedData }))
+    outputData.push(
+      formatLine({ data, extendedData, date, strategy, requestType })
+    )
   }
 
   console.log(columnify(outputData, { showHeaders: headers }))
