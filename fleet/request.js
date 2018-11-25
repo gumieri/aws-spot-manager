@@ -1,6 +1,8 @@
 const fs = require('fs')
 const ora = require('ora')
 const AWS = require('aws-sdk')
+const chalk = require('chalk')
+const { toOrdinal } = require('ordinal-js')
 const { prompt } = require('enquirer')
 const ec2 = new AWS.EC2({ apiVersion: '2016-11-15' })
 const ecs = new AWS.ECS({ apiVersion: '2014-11-13' })
@@ -10,6 +12,9 @@ const config = require('../lib/config')
 const { spotFleet: spotFleetUserData } = require('../lib/user_data')
 const extendedSource = require('../lib/extended_source')
 const { stringArrayOrEmpty, requiredInput } = require('../lib/utils')
+
+const requiredWord = chalk.red.bold('REQUIRED')
+const optionalWord = chalk.green.bold('OPTIONAL')
 
 async function findSubnet ({ Subnet }) {
   const { Subnets: byId } = await ec2
@@ -25,6 +30,27 @@ async function findSubnet ({ Subnet }) {
   if (byName.length > 0) return byName[0]
 
   throw new Error(`The subnet with name/id ${Subnet} cannot be found.`)
+}
+
+async function forAsk ({ message, validate }, loopFunction) {
+  const responses = []
+  for (let i = 0; ; i++) {
+    const { response } = await prompt({
+      type: 'input',
+      name: 'response',
+      message,
+      validate
+    })
+    if (!response) break
+
+    responses.push(response)
+
+    result = await loopFunction({ i, response, responses })
+    message = result.message
+    validate = result.validate
+  }
+
+  return responses
 }
 
 async function findSecurityGroup ({ SecurityGroup, VpcId }) {
@@ -121,7 +147,8 @@ module.exports = async ({
   ecsCluster,
   monitoring,
   instanceProfile,
-  allocationStrategy
+  allocationStrategy,
+  interactive = true
 }) => {
   const cfg = await config.load()
 
@@ -167,85 +194,76 @@ module.exports = async ({
   const instanceTypes = stringArrayOrEmpty(instanceType)
   const securityGroups = stringArrayOrEmpty(securityGroup)
 
-  if (!ami) {
+  // Ask for missing information
+
+  if (interactive && !ami) {
     const { response } = await prompt({
       type: 'input',
       name: 'response',
-      message: 'Inform a Image ID (e.g. "ami-1a2b3c4d") - REQUIRED',
+      message: `Inform a Image ID (e.g. "ami-1a2b3c4d") ${requiredWord}`,
       validate: requiredInput
     })
 
     if (response) ami = response
   }
 
-  if (instanceTypes.length === 0) {
-    let message = 'Inform a Instance Type (e.g. "t2.small") - REQUIRED'
-    let validate = requiredInput
-    while (true) {
-      const { response } = await prompt({
-        type: 'input',
-        name: 'response',
-        message,
-        validate
+  if (interactive && instanceTypes.length === 0) {
+    const responses = await forAsk(
+      {
+        message: `Inform a Instance Type (e.g. "t2.small") ${requiredWord}`,
+        validate: requiredInput
+      },
+      ({ i }) => ({
+        message: `Inform a ${toOrdinal(i + 2)} Instance Type ${optionalWord}`,
+        validate: undefined
       })
+    )
 
-      if (!response) break
-
-      instanceTypes.push(response)
-      message = 'Inform another Instance Type or let it empty'
-      validate = undefined
-    }
+    instanceTypes.push(...responses)
   }
 
-  if (subnets.length === 0) {
-    let message =
-      'Inform a Subnet ID or Name Tag (e.g. "subnet-1a2b3c4d") - REQUIRED'
-    let validate = requiredInput
-    while (true) {
-      const { response } = await prompt({
-        type: 'input',
-        name: 'response',
-        message,
-        validate
+  if (interactive && subnets.length === 0) {
+    const responses = await forAsk(
+      {
+        message: `Inform a Subnet ID or Name Tag (e.g. "subnet-1a2b3c4d") ${requiredWord}`,
+        validate: requiredInput
+      },
+      ({ i }) => ({
+        message: `Inform a ${toOrdinal(i + 2)} Subnet ${optionalWord}`,
+        validate: undefined
       })
-      if (!response) break
+    )
 
-      subnets.push(response)
-      message = 'Inform another Subnet or let it empty'
-      validate = undefined
-    }
+    subnets.push(...responses)
   }
 
-  if (securityGroups.length === 0) {
-    let message =
-      'Inform a Security Group ID, Group Name or Name Tag (e.g. "sg-1a2b3c4d")'
-    while (true) {
-      const { response } = await prompt({
-        type: 'input',
-        name: 'response',
-        message
+  if (interactive && securityGroups.length === 0) {
+    const responses = await forAsk(
+      {
+        message: `Inform a Security Group ID, Group Name or Name Tag (e.g. "sg-1a2b3c4d") ${optionalWord}`
+      },
+      ({ i }) => ({
+        message: `Inform a ${toOrdinal(i + 2)} Security Group ${optionalWord}`
       })
-      if (!response) break
+    )
 
-      securityGroups.push(response)
-      message = 'Inform another Security Group or let it empty'
-    }
+    securityGroups.push(...responses)
   }
 
-  if (tags.length === 0) {
-    let message = 'Inform a Tag with value (e.g. "Name=Awesome")'
-    while (true) {
-      const { response } = await prompt({
-        type: 'input',
-        name: 'response',
-        message
+  if (interactive && tags.length === 0) {
+    const responses = await forAsk(
+      {
+        message: `Inform a Tag with value (e.g. "Name=Awesome") ${optionalWord}`
+      },
+      ({ i }) => ({
+        message: `Inform a ${toOrdinal(i + 2)} Tag ${optionalWord}`
       })
-      if (!response) break
+    )
 
-      tags.push(response)
-      message = 'Inform another Tag or let it empty'
-    }
+    tags.push(...responses)
   }
+
+  // Check parameters
 
   const checkRole = iam.getRole({ RoleName: fleetRole }).promise()
   ora.promise(checkRole, 'Checking IAM Role...')
@@ -269,18 +287,26 @@ module.exports = async ({
   const SubnetIds = []
   for (const { SubnetId, VpcId } of await findAllSubnets) {
     SubnetIds.push(SubnetId)
+
+    if (singleVpcId && singleVpcId !== VpcId) {
+      throw new Erro('The informed Subnets are from different VPCs.')
+    }
+
     singleVpcId = VpcId
   }
 
-  const findAllSecurityGroups = Promise.all(
-    securityGroups.map(SecurityGroup =>
-      findSecurityGroup({ SecurityGroup, VpcId: singleVpcId })
+  let SecurityGroups
+  if (securityGroups.length > 0) {
+    const findAllSecurityGroups = Promise.all(
+      securityGroups.map(SecurityGroup =>
+        findSecurityGroup({ SecurityGroup, VpcId: singleVpcId })
+      )
     )
-  )
-  ora.promise(findAllSecurityGroups, 'Checking Security Groups...')
-  const SecurityGroups = (await findAllSecurityGroups).map(({ GroupId }) => ({
-    GroupId
-  }))
+    ora.promise(findAllSecurityGroups, 'Checking Security Groups...')
+    SecurityGroups = (await findAllSecurityGroups).map(({ GroupId }) => ({
+      GroupId
+    }))
+  }
 
   let TagSpecifications
   if (tags.length !== 0) {
@@ -290,6 +316,8 @@ module.exports = async ({
       TagSpecifications[0].Tags.push({ Key, Value })
     }
   }
+
+  // Mount and request
 
   const LaunchSpecifications = []
   for (const it of instanceTypes) {

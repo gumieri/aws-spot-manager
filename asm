@@ -80,7 +80,10 @@ lib2cli.run({
                 defaultValue: false
               },
               'instance-profile': {},
-              'allocation-strategy': {}
+              'allocation-strategy': {},
+              'no-interactive': {
+                description: 'Will ask nothing.'
+              }
             }
           },
           cancel: {
