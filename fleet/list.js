@@ -50,11 +50,9 @@ module.exports = async ({
 }) => {
   const cfg = await config.load()
 
-  if (!region) {
-    region = cfg.region
-  }
+  if (!region) region = cfg.region
 
-  const ec2 = new AWS.EC2({ apiVersion: '2016-11-15', region: cfg.region })
+  const ec2 = new AWS.EC2({ apiVersion: '2016-11-15', region })
 
   const extendedData = await extendedSource.allFleets({ config: cfg })
 
