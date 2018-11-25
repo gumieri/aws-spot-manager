@@ -34,6 +34,9 @@ lib2cli.run({
               },
               'no-headers': {
                 description: "Does not print headers' table."
+              },
+              region: {
+                description: 'AWS Region.'
               }
             }
           },
@@ -83,6 +86,9 @@ lib2cli.run({
               'allocation-strategy': {},
               'no-interactive': {
                 description: 'Will ask nothing.'
+              },
+              region: {
+                description: 'AWS Region.'
               }
             }
           },
@@ -93,6 +99,11 @@ lib2cli.run({
                 description:
                   'ID of the spot fleet (e.g. sfr-1a2b3c4d5e6f7g8h9i0k)',
                 required: true
+              }
+            },
+            flags: {
+              region: {
+                description: 'AWS Region.'
               }
             }
           }

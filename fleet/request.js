@@ -4,9 +4,6 @@ const AWS = require('aws-sdk')
 const chalk = require('chalk')
 const { toOrdinal } = require('ordinal-js')
 const { prompt } = require('enquirer')
-const ec2 = new AWS.EC2({ apiVersion: '2016-11-15' })
-const ecs = new AWS.ECS({ apiVersion: '2014-11-13' })
-const iam = new AWS.IAM({ apiVersion: '2010-05-08' })
 
 const config = require('../lib/config')
 const { spotFleet: spotFleetUserData } = require('../lib/user_data')
@@ -15,22 +12,6 @@ const { stringArrayOrEmpty, requiredInput } = require('../lib/utils')
 
 const requiredWord = chalk.red.bold('REQUIRED')
 const optionalWord = chalk.green.bold('OPTIONAL')
-
-async function findSubnet ({ Subnet }) {
-  const { Subnets: byId } = await ec2
-    .describeSubnets({ Filters: [{ Name: 'subnet-id', Values: [Subnet] }] })
-    .promise()
-
-  if (byId.length > 0) return byId[0]
-
-  const { Subnets: byName } = await ec2
-    .describeSubnets({ Filters: [{ Name: 'tag:Name', Values: [Subnet] }] })
-    .promise()
-
-  if (byName.length > 0) return byName[0]
-
-  throw new Error(`The subnet with name/id ${Subnet} cannot be found.`)
-}
 
 async function forAsk ({ message, validate }, loopFunction) {
   const responses = []
@@ -53,7 +34,23 @@ async function forAsk ({ message, validate }, loopFunction) {
   return responses
 }
 
-async function findSecurityGroup ({ SecurityGroup, VpcId }) {
+async function findSubnet ({ ec2, Subnet }) {
+  const { Subnets: byId } = await ec2
+    .describeSubnets({ Filters: [{ Name: 'subnet-id', Values: [Subnet] }] })
+    .promise()
+
+  if (byId.length > 0) return byId[0]
+
+  const { Subnets: byName } = await ec2
+    .describeSubnets({ Filters: [{ Name: 'tag:Name', Values: [Subnet] }] })
+    .promise()
+
+  if (byName.length > 0) return byName[0]
+
+  throw new Error(`The subnet with name/id ${Subnet} cannot be found.`)
+}
+
+async function findSecurityGroup ({ ec2, SecurityGroup, VpcId }) {
   const { SecurityGroups: byId } = await ec2
     .describeSecurityGroups({
       Filters: [
@@ -92,7 +89,7 @@ async function findSecurityGroup ({ SecurityGroup, VpcId }) {
   )
 }
 
-async function findLatestAmiEcsOptimized () {
+async function findLatestAmiEcsOptimized ({ ec2 }) {
   const { Images } = await ec2
     .describeImages({
       Filters: [
@@ -141,6 +138,7 @@ module.exports = async ({
   targetCapacity = c,
   ami,
   ebs,
+  region,
   spotPrice,
   userData,
   fleetRole,
@@ -151,6 +149,12 @@ module.exports = async ({
   interactive = true
 }) => {
   const cfg = await config.load()
+
+  if (!region) region = cfg.region
+
+  const ec2 = new AWS.EC2({ apiVersion: '2016-11-15', region })
+  const ecs = new AWS.ECS({ apiVersion: '2014-11-13', region })
+  const iam = new AWS.IAM({ apiVersion: '2010-05-08', region })
 
   if (!fleetRole) {
     if (ecsCluster) {
@@ -172,17 +176,14 @@ module.exports = async ({
   }
 
   if (!ami && ecsCluster) {
-    const searchingECSAMI = findLatestAmiEcsOptimized()
+    const searchingECSAMI = findLatestAmiEcsOptimized({ ec2 })
     ora.promise(searchingECSAMI, 'Searching Latest ECS Optimized AMI...')
     const image = await searchingECSAMI
     if (image) ami = image.ImageId
   }
 
   if (!userData && ecsCluster) {
-    userData = spotFleetUserData({
-      cluster: ecsCluster,
-      region: AWS.config.region
-    })
+    userData = spotFleetUserData({ cluster: ecsCluster, region })
   }
 
   const SpotPrice = spotPrice
@@ -279,7 +280,7 @@ module.exports = async ({
   }
 
   const findAllSubnets = Promise.all(
-    subnets.map(Subnet => findSubnet({ Subnet }))
+    subnets.map(Subnet => findSubnet({ ec2, Subnet }))
   )
   ora.promise(findAllSubnets, 'Checking Subnets...')
 
@@ -299,7 +300,7 @@ module.exports = async ({
   if (securityGroups.length > 0) {
     const findAllSecurityGroups = Promise.all(
       securityGroups.map(SecurityGroup =>
-        findSecurityGroup({ SecurityGroup, VpcId: singleVpcId })
+        findSecurityGroup({ ec2, SecurityGroup, VpcId: singleVpcId })
       )
     )
     ora.promise(findAllSecurityGroups, 'Checking Security Groups...')

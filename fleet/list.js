@@ -1,7 +1,6 @@
 const AWS = require('aws-sdk')
 const moment = require('moment')
 const columnify = require('columnify')
-const ec2 = new AWS.EC2({ apiVersion: '2016-11-15' })
 
 const config = require('../lib/config')
 const extendedSource = require('../lib/extended_source')
@@ -46,9 +45,16 @@ module.exports = async ({
   state,
   date,
   strategy,
+  region,
   requestType
 }) => {
   const cfg = await config.load()
+
+  if (!region) {
+    region = cfg.region
+  }
+
+  const ec2 = new AWS.EC2({ apiVersion: '2016-11-15', region: cfg.region })
 
   const extendedData = await extendedSource.allFleets({ config: cfg })
 
