@@ -8,12 +8,13 @@ const config = require('../lib/config')
 const extendedSource = require('../lib/extended_source')
 const { stringArrayOrEmpty } = require('../lib/utils')
 
-module.exports = async ({ keepTags, region }, spotFleet) => {
+module.exports = async (spotFleets, { keepTags, region }) => {
   const cfg = await config.load()
 
   if (!region) region = cfg.region
 
-  if (!spotFleet) {
+  spotFleets = stringArrayOrEmpty(spotFleets)
+  if (spotFleets.length === 0) {
     const { response } = await prompt({
       type: 'input',
       name: 'response',
@@ -23,28 +24,30 @@ module.exports = async ({ keepTags, region }, spotFleet) => {
       validate: requiredInput
     })
 
-    if (response) spotFleet = response
+    if (response) spotFleets = response
   }
-
-  if (!spotFleet) throw new Error()
 
   const ec2 = new AWS.EC2({ apiVersion: '2016-11-15', region })
   const canceling = ec2
     .cancelSpotFleetRequests({
-      SpotFleetRequestIds: [spotFleet],
+      SpotFleetRequestIds: spotFleets,
       TerminateInstances: true
     })
     .promise()
-
-  const removingTags = extendedSource.deleteFleet({
-    config: cfg,
-    SpotFleetRequestId: spotFleet
-  })
 
   ora.promise(canceling, 'Canceling Spot Fleet...')
   await canceling
 
   if (keepTags || !cfg.extend_source) return
+
+  const removingTags = Promise.all(
+    spotFleets.map(spotFleet =>
+      extendedSource.deleteFleet({
+        config: cfg,
+        SpotFleetRequestId: spotFleet
+      })
+    )
+  )
 
   ora.promise(removingTags, 'Removing tags from extended source...')
   await removingTags
