@@ -111,7 +111,7 @@ async function findLatestAmiEcsOptimized ({ ec2 }) {
   return latest
 }
 
-async function checkECSCluster (cluster) {
+async function checkECSCluster ({cluster, ecs}) {
   const { clusters } = await ecs
     .describeClusters({ clusters: [cluster] })
     .promise()
@@ -170,7 +170,7 @@ module.exports = async ({
 
   if (ecsCluster) {
     if (typeof ecsCluster !== 'string') ecsCluster = 'default'
-    const checkingECSCluster = checkECSCluster(ecsCluster)
+    const checkingECSCluster = checkECSCluster({cluster: ecsCluster, ecs})
     ora.promise(checkingECSCluster, 'Checking ECS Cluster...')
     await checkingECSCluster
   }
