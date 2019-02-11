@@ -67,7 +67,11 @@ module.exports = {
         defaultValue: false
       },
       'instance-profile': {},
-      'allocation-strategy': {},
+      'allocation-strategy': {
+        description:
+          'Indicates how to allocate the target capacity. "lowestPrice" or "diversified"',
+        defaultValue: 'lowestPrice'
+      },
       'no-interactive': {
         description: 'Will ask nothing.'
       },
