@@ -146,6 +146,8 @@ module.exports = async ({
   monitoring,
   instanceProfile,
   allocationStrategy,
+  launchTemplate = true,
+  launchTemplateVersion,
   interactive = true
 }) => {
   const cfg = await config.load()
@@ -197,7 +199,64 @@ module.exports = async ({
 
   // Ask for missing information
 
-  if (interactive && !ami) {
+  let launchTemplateIdOrName
+  if (typeof launchTemplate === 'string') {
+    launchTemplateIdOrName = launchTemplate
+  }
+
+  if (interactive && !launchTemplateIdOrName && launchTemplate !== false) {
+    const { confirmation } = await prompt({
+      type: 'confirm',
+      name: 'confirmation',
+      message: `Want to use a Launch Template?`,
+      validate: requiredInput
+    })
+
+    if (confirmation) {
+      const { response } = await prompt({
+        type: 'input',
+        name: 'response',
+        message: `Inform the Launch Template ID or Name (e.g. "lt-1a2b3c4d5e7f8g9h0") ${requiredWord}`,
+        validate: requiredInput
+      })
+
+      if (response) launchTemplateIdOrName = response
+    }
+  }
+
+  if (launchTemplateIdOrName) {
+    try {
+      data = await ec2
+        .describeLaunchTemplates({
+          LaunchTemplateNames: [launchTemplateIdOrName]
+        })
+        .promise()
+    } catch (err) {
+      data = await ec2
+        .describeLaunchTemplates({
+          LaunchTemplateIds: [launchTemplateIdOrName]
+        })
+        .promise()
+    }
+
+    launchTemplate = data.LaunchTemplates[0].LaunchTemplateId
+    launchTemplateDefaultVersion = data.LaunchTemplates[0].DefaultVersionNumber
+    launchTemplateLatestVersion = data.LaunchTemplates[0].LatestVersionNumber
+  }
+
+  if (interactive && launchTemplate && !launchTemplateVersion) {
+    launchTemplateVersion = launchTemplateDefaultVersion
+
+    const { response } = await prompt({
+      type: 'input',
+      name: 'response',
+      message: `Inform the Launch Template version (default: "${launchTemplateVersion}", latest: "${launchTemplateLatestVersion}") ${optionalWord}`
+    })
+
+    if (response) launchTemplateVersion = response
+  }
+
+  if (interactive && !launchTemplate && !ami) {
     const { response } = await prompt({
       type: 'input',
       name: 'response',
@@ -346,6 +405,16 @@ module.exports = async ({
     })
   }
 
+  const LaunchTemplateConfigs = [
+    {
+      LaunchTemplateSpecification: {
+        LaunchTemplateId: launchTemplate,
+        Version: launchTemplateVersion
+      }
+    }
+  ]
+
+  process.exit(0)
   const requestPromise = ec2
     .requestSpotFleet({
       SpotFleetRequestConfig: {
