@@ -25,9 +25,7 @@
     "url": "https://github.com/gumieri/aws-spot-manager/issues"
   },
   "homepage": "https://github.com/gumieri/aws-spot-manager#readme",
-  "devDependencies": {
-    "ava": "^0.25.0"
-  },
+  "devDependencies": {},
   "dependencies": {
     "aws-sdk": "^2.358.0",
     "chalk": "^2.4.1",
