@@ -278,7 +278,9 @@ module.exports = async ({
 
   const checkRole = iam.getRole({ RoleName: fleetRole }).promise()
   ora.promise(checkRole, 'Checking IAM Role...')
-  const { Role: { Arn: IamFleetRole } } = await checkRole
+  const {
+    Role: { Arn: IamFleetRole }
+  } = await checkRole
 
   let IamInstanceProfile
   if (instanceProfile) {
@@ -286,7 +288,8 @@ module.exports = async ({
       .getInstanceProfile({ InstanceProfileName: instanceProfile })
       .promise()
     ora.promise(checkProfile, 'Checking Instance Profile...')
-    const data = await checkProfile
+    const { InstanceProfile: Arn } = await checkProfile
+    IamInstanceProfile = { Arn }
   }
 
   const findAllSubnets = Promise.all(
